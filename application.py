@@ -1,25 +1,26 @@
 from flask import Flask, render_template, request,jsonify
+# Using Flask-CORS simplifies handling cross-origin requests in your Flask application and ensures proper security measures are in place when interacting with different domains or origins.
 from flask_cors import CORS,cross_origin
 import requests
 from bs4 import BeautifulSoup as bs
 from urllib.request import urlopen as uReq
+import logging
 import pymongo
+logging.basicConfig(filename="scrapper.log" , level=logging.INFO)
 
-application = Flask(__name__) # initializing a flask app
-app=application
+app = Flask(__name__)
 
-@app.route('/',methods=['GET'])  # route to display the home page
-@cross_origin()
-def homePage():
+@app.route("/", methods = ['GET'])
+def homepage():
     return render_template("index.html")
 
-@app.route('/review',methods=['POST','GET']) # route to show the review comments in a web UI
-@cross_origin()
+@app.route("/review" , methods = ['POST' , 'GET'])
 def index():
     if request.method == 'POST':
         try:
             searchString = request.form['content'].replace(" ","")
             flipkart_url = "https://www.flipkart.com/search?q=" + searchString
+            # print(flipkart_url)
             uClient = uReq(flipkart_url)
             flipkartPage = uClient.read()
             uClient.close()
@@ -38,6 +39,7 @@ def index():
             fw = open(filename, "w")
             headers = "Product, Customer Name, Rating, Heading, Comment \n"
             fw.write(headers)
+            
             reviews = []
             for commentbox in commentboxes:
                 try:
@@ -45,7 +47,7 @@ def index():
                     name = commentbox.div.div.find_all('p', {'class': '_2sc7ZR _2V5EHH'})[0].text
 
                 except:
-                    name = 'No Name'
+                    logging.info("name")
 
                 try:
                     #rating.encode(encoding='utf-8')
@@ -54,6 +56,7 @@ def index():
 
                 except:
                     rating = 'No Rating'
+                    logging.info("rating")
 
                 try:
                     #commentHead.encode(encoding='utf-8')
@@ -61,29 +64,36 @@ def index():
 
                 except:
                     commentHead = 'No Comment Heading'
+                    logging.info(commentHead)
                 try:
                     comtag = commentbox.div.div.find_all('div', {'class': ''})
                     #custComment.encode(encoding='utf-8')
                     custComment = comtag[0].div.text
                 except Exception as e:
-                    print("Exception while creating dictionary: ",e)
+                    logging.info(e)
 
                 mydict = {"Product": searchString, "Name": name, "Rating": rating, "CommentHead": commentHead,
                           "Comment": custComment}
                 reviews.append(mydict)
-            client = pymongo.MongoClient("mongodb+srv://pwskills:pwskills@cluster0.ln0bt5m.mongodb.net/?retryWrites=true&w=majority")
-            db = client['review_scrap']
-            review_col = db['review_scrap_data']
-            review_col.insert_many(reviews)
-            return render_template('results.html', reviews=reviews[0:(len(reviews)-1)])
+            logging.info("log my final result {}".format(reviews))
+
+            
+            client = pymongo.MongoClient("mongodb+srv://Nikhil:pwskills@cluster0.siytt6m.mongodb.net/?retryWrites=true&w=majority")
+            db =client['scrapper_eng_pwskills']
+            coll_pw_eng = db['scraper_pwskills_eng']
+            coll_pw_eng.insert_many(reviews)
+
+            return render_template('result.html', reviews=reviews[0:(len(reviews)-1)])
         except Exception as e:
-            print('The Exception message is: ',e)
+            logging.info(e)
             return 'something is wrong'
     # return render_template('results.html')
 
     else:
         return render_template('index.html')
 
-if __name__ == "__main__":
-    app.run(host='127.0.0.1', port=8000, debug=True)
-	#app.run(debug=True)
+# app = Flask(__name__)
+# app.debug = True 
+
+if __name__=="__main__":
+    app.run(host="0.0.0.0")
